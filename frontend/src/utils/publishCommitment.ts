@@ -1,6 +1,6 @@
 import WalletClient from '@bsv/sdk/wallet/WalletClient'
 import { StorageUploader } from '@bsv/sdk/storage/StorageUploader'
-import { PushDrop, Utils } from '@bsv/sdk'
+import { PushDrop, Utils, TopicBroadcaster, Transaction } from '@bsv/sdk'
 
 export interface PublishCommitmentParams {
   hostingMinutes: number
@@ -90,7 +90,7 @@ export async function publishCommitment({
   )
 
   // Create the on-chain action with 1 sat PushDrop output
-  await wallet.createAction({
+  const { tx } = await wallet.createAction({
     outputs: [
       {
         lockingScript: lockingScript.toHex(),
@@ -103,6 +103,17 @@ export async function publishCommitment({
     labels: ['publishcommitment'],
     description: 'publishcommitment'
   })
+  
+  if (!tx) {
+    throw new Error('Failed to create action: missing tx')
+  }
+
+  const broadcaster = new TopicBroadcaster(['tm_uhrp'], {
+    networkPreset: window.location.hostname === 'localhost' ? 'local' : 'mainnet'
+  })
+  
+  // Broadcast the atomic BEEF to the Topic Manager so it can admit the output
+  await broadcaster.broadcast(Transaction.fromAtomicBEEF(tx))
 
   return uhrpURL
 }
